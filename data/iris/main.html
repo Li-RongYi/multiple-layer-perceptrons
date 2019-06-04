@@ -1,0 +1,235 @@
+var app = new Vue({
+    el: '#app',
+    data: {
+      toggle_multiple: [],
+      mat: [],
+      mat_ans: [],
+      n: 2,
+      ns: '2',
+      dialog: false,
+      rules:[
+        v => parseInt((v || '')) <= 10 || `N is expected in range of 1~10.`,
+        v => (/^[1-9]\d*$/).test(v) || 'Invalid number.'
+      ],
+      phase:"🌑🌒🌓🌔🌕🌖🌗🌘"
+    },
+    created: function(){
+      this.clear();
+      this.rotate()
+    },
+    methods: {
+      rotate:function(){
+        
+        setInterval(function(){app.phase=app.phase.substring(2, app.phase.length) + app.phase.substring(0, 2)}, 500);
+      },
+      conv_mat: function(m){
+        var ans = "";
+        ans+='<p>';
+        for(var i =0;i<m.length;i++){
+          for(var j =0;j<m[0].length;j++){
+            ans+=m[i][j]==+1?'🌕':'🌑';
+            ans+=' ';
+          }
+          ans+='<br>'
+        }
+        ans+="</p>";
+        return ans;
+      },
+      conv_mat_ans: function(obj){
+        var m = obj.m
+        var sta=obj.sta
+        var ans = "";
+        ans+='<p style:"color:blue">';
+        for(var i =0;i<m.length;i++){
+          for(var j =0;j<m[0].length;j++){
+            ans+=m[i][j]==+1?'🌕':'🌑';
+            ans+=' ';
+          }
+          ans+='<br>'
+        }
+        ans+="</p>";
+        ans+="<p>"+sta+"</p>";
+        ans+="<p> Score: "+obj.score+"</p>";
+        return ans;
+      },
+      trim: function(m){
+        x=m.length-1
+        y=m[0].length-1
+        ans=[];
+        for(var i=0;i<x;i++){
+          ans[i]=[]
+        }
+        for(var i=0;i<x;i++){
+          for(var j=0;j<y;j++){
+            ans[i][j]=m[i+1][j+1]
+          }
+        }
+        return ans;
+      },
+      add: function(){
+        this.mat.push(this.trim(this.toggle_multiple))
+        this.clear_now()
+      },
+      check: function(){
+        for(var i =1;i<=this.n;i++){
+          for(var j =1;j<=this.n;j++){
+            var v = eval("'icon'+i+j")
+            var x = document.getElementById(v)
+            if (x) x.innerHTML=this.toggle_multiple[i][j]==1?'🌕':'🌑';
+          }
+        }
+      },
+      flip: function(i,j){
+        this.toggle_multiple[i][j]=this.toggle_multiple[i][j]==1?-1:1;
+        this.check()
+      },
+      clear_now: function(){
+        this.toggle_multiple=Array(this.n+1).fill([]);
+        for(var i=0;i<this.toggle_multiple.length;i++){
+          this.toggle_multiple[i]=Array(this.n+1).fill(-1);
+        }
+        this.check()
+      },
+      clear: function(){
+        this.clear_now()
+        this.mat=[]
+        this.mat_ans=[]
+      },
+      submit: function(){
+        this.n = parseInt(this.ns);
+        this.clear()
+        this.dialog=false;
+      },
+      pred: function(){
+        var z = this.trim(this.toggle_multiple).flat();
+        console.log("What to predict: ",z);
+        var x=[]
+        for(var i=0;i<this.mat.length;i++){
+          x.push(this.mat[i].flat());
+        }
+        var xt=[];
+        for(var i=0;i<x[0].length;i++)
+        {
+          xt[i]=[];
+        }
+        for(var i=0;i<x.length;i++)
+        {
+          for(var j=0;j<x[0].length;j++)
+          {
+            xt[j][i]=x[i][j];
+          }
+        }
+        var xtx = [];
+        for(var i=0;i<xt.length;i++){
+          xtx[i]=Array(x[0].length).fill(0)
+        }
+        for(var i=0;i<xt.length;i++)
+        {
+          for(var j=0;j<x[0].length;j++)
+          {
+            if(i==j){
+              xtx[i][j]=0;
+              continue;
+            }
+            for(var k=0;k<x.length;k++){
+              xtx[i][j]+=xt[i][k]*x[k][j]
+            }
+            xtx[i][j]*=1/(this.n*this.n)
+          }
+          
+        }
+        console.log("Weight Matrix: ",xtx);
+        var u=[]
+        for(var i=0;i<xt.length;i++){
+          u[i]=0;
+          for(var j=0;j<xt.length;j++){
+            u[i]+=xtx[i][j]*z[j];
+          }
+        }
+        console.log("u(begin): ",u);
+        var v=u.slice(0);
+        for(var i=0;i<xt.length;i++){
+          if(v[i]>0) v[i]=1;
+          else if(v[i]<0) v[i]=-1;
+        }
+        console.log("v(begin): ",v);
+        var lv = v.slice(0);
+        var llv = null
+        u=v.slice(0);
+        while(true){
+          console.log("u: ",u);
+          for(var i=0;i<xt.length;i++){
+            v[i]=0;
+            for(var j=0;j<xt.length;j++){
+              v[i]+=xtx[i][j]*u[j];
+            }
+          }
+          for(var i=0;i<xt.length;i++){
+            if(v[i]>=0) v[i]=1;
+            else v[i]=-1;
+          }
+          console.log("v: ",v);
+          if(v.toString()==lv.toString()){
+            console.log("v reaches stable stage.");
+            console.log("Stable state: ",v);
+            var minsimilar=0;
+            var ans = null;
+            for(var i=0;i<this.mat.length;i++){
+              var similar=0
+              var l = this.mat[i].flat().length
+              for(var j =0;j<l;j++){
+                if (this.mat[i].flat()[j]==v[j]) similar++;
+              }
+              if(similar>minsimilar){
+                minsimilar=similar;
+                ans=this.mat[i].slice(0);
+                console.log("(stable) answer update: ",ans.flat(),similar);
+              }
+            }
+            this.mat_ans.push({m:ans, sta:"Stable", score:minsimilar});
+            return
+          }
+          else if (llv!=null&&v.toString()==llv.toString()){
+            console.log("v reaches looping stage.");
+            console.log("Loop state 1: ",v);
+            console.log("Loop state 2: ",lv);
+            var minsimilar=0;
+            var ans = null;
+            for(var i=0;i<this.mat.length;i++){
+              var similar=0
+              var l = this.mat[i].flat().length
+              for(var j =0;j<l;j++){
+                if (this.mat[i].flat()[j]==v[j]) similar++;
+              }
+              if(similar>minsimilar){
+                minsimilar=similar;
+                ans=this.mat[i].slice(0);
+                console.log("(loop) answer 1 update: ",ans.flat(),similar);
+              }
+            }
+            this.mat_ans.push({m:ans, sta:"Loop", score:minsimilar});
+
+            minsimilar=0;
+            var ans2 = null;
+            for(var i=0;i<this.mat.length;i++){
+              var similar=0
+              var l = this.mat[i].flat().length
+              for(var j =0;j<l;j++){
+                if (this.mat[i].flat()[j]==lv[j]) similar++;
+              }
+              if(similar>minsimilar){
+                minsimilar=similar;
+                ans2=this.mat[i].slice(0);
+                console.log("(loop) answer 2 update: ",ans2.flat(),similar);
+              }
+            }
+            if(ans2.toString()!=ans.toString()) this.mat_ans.push({m:ans2, sta:"Loop", score:minsimilar});
+            return
+          }
+          llv=lv.slice(0);
+          lv=v.slice(0);
+          u=v.slice(0)
+        }
+      }
+    },
+  })
